@@ -1,62 +1,179 @@
--- Assuming you have defined the flags and desync functions somewhere else in your script
-local flags = {
-    [Desync] = false,  -- Default value for desync toggle
-    [Desync Key] = false, -- Default value for desync key
-    [Destroy Cheaters] = false,
-    [Destroy Cheaters Key] = false,
-    [Desync Type] = Random,  -- Default desync type
-    [Desync Strafe Speed] = 0.1,
-    [Desync Random Range] = 5,
-    [Desync Strafe Height] = 0,
-    [Desync Strafe Radius] = 10,
-    [Desync X] = 0,
-    [Desync Y] = 0,
-    [Desync Z] = 0,
-    [Rotation X] = 0,
-    [Rotation Y] = 0,
-    [Rotation Z] = 0,
-}
+-- Define a new section for the example addon
+local Example = ObeseAddons:Section({Name = "Game Utilities", Side = "left"})
 
--- Create the desync toggle in the example UI
-ExampleToggle({
-    Name = Enable Desync,  -- Toggle button name
-    Def = false,  -- Default state (off)
+-- Variables and Flags for internal usage
+local flags = {}
+local callbacks, connections = {}, {}
+local lplr_parts, lplr_character = {}, nil
+
+-- Helper Functions
+local function newConnection(signal, callback)
+    local connection = signal:Connect(callback)
+    table.insert(connections, connection)
+    return connection
+end
+
+local function insert(array, value)
+    table.insert(array, value)
+end
+
+local function remove(array, value)
+    for i, v in ipairs(array) do
+        if v == value then
+            table.remove(array, i)
+            break
+        end
+    end
+end
+
+-- Feature: Destroy Cheaters
+flags["destroy_cheaters"] = false
+flags["destroy_cheaters_keybind"] = {active = false}
+
+Example:Toggle({
+    Name = "Destroy Cheaters",
+    Def = false,
+    Callback = function(state)
+        flags["destroy_cheaters"] = state
+    end
+})
+
+Example:Button({
+    Name = "Activate Destroy Cheaters",
+    Callback = function()
+        flags["destroy_cheaters_keybind"].active = not flags["destroy_cheaters_keybind"].active
+        print("Destroy Cheaters Keybind active:", flags["destroy_cheaters_keybind"].active)
+    end
+})
+
+local function destroyCheaters()
+    if not flags["destroy_cheaters_keybind"].active then return end
+    if not lplr_character then return end
+
+    local hrp = lplr_parts["HumanoidRootPart"]
+    if not hrp then return end
+
+    local old = hrp.CFrame
+    hrp.CFrame = CFrame.new(9e9, 0, math.huge)
+    game:GetService("RunService").RenderStepped:Wait()
+    hrp.CFrame = old
+end
+
+-- Feature: Random Target Teleport
+flags["random_target_teleport"] = false
+flags["random_target_teleport_keybind"] = {active = false}
+flags["random_target_teleport_range"] = 10
+
+Example:Toggle({
+    Name = "Random Target Teleport",
+    Def = false,
+    Callback = function(state)
+        flags["random_target_teleport"] = state
+    end
+})
+
+Example:Button({
+    Name = "Activate Random Target Teleport",
+    Callback = function()
+        flags["random_target_teleport_keybind"].active = not flags["random_target_teleport_keybind"].active
+        print("Random Target Teleport Keybind active:", flags["random_target_teleport_keybind"].active)
+    end
+})
+
+Example:Slider({
+    Name = "Target Teleport Range",
+    Min = 2,
+    Max = 30,
+    Default = 10,
+    Decimals = 1,
+    Suffix = "studs",
     Callback = function(value)
-        -- Update the desync flag based on the toggle state
-        flags[Desync] = value
-        
-        if value then
-            -- Code to enable desync
-            print(Desync Enabled)
-        else
-            -- Code to disable desync
-            print(Desync Disabled)
+        flags["random_target_teleport_range"] = value
+    end
+})
+
+local function targetTeleport()
+    if not flags["random_target_teleport_keybind"].active then return end
+
+    local target = get_aimbot_target()
+    if not target or not lplr_character then return end
+
+    local hrp = lplr_parts["HumanoidRootPart"]
+    if not hrp then return end
+
+    local target_hrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    if not target_hrp then return end
+
+    local range = flags["random_target_teleport_range"]
+    hrp.CFrame = target_hrp.CFrame + Vector3.new(math.random(-range, range), math.random(-range, range), math.random(-range, range))
+end
+
+-- Feature: 0 Camlock Smoothness
+Example:Button({
+    Name = "Set 0 Camlock Smoothness",
+    Callback = function()
+        flags["Default_aim_assist_horizontal_smoothness"] = 0
+        flags["Pistols_aim_assist_horizontal_smoothness"] = 0
+        flags["Shotguns_aim_assist_horizontal_smoothness"] = 0
+        flags["Automatics_aim_assist_horizontal_smoothness"] = 0
+        print("Set all aim assist horizontal smoothness values to 0")
+    end
+})
+
+-- Feature: Force Reset
+Example:Button({
+    Name = "Force Reset",
+    Callback = function()
+        local humanoid = lplr_parts["Humanoid"]
+        if humanoid then
+            humanoid.Health = 0
+            print("Forced player reset")
         end
     end
 })
 
--- Example of how you might integrate this toggle into your main loop or event
-local function updateDesync()
-    -- This function runs continuously or within an update loop to apply the desync logic
-    if flags[Desync] and flags[Desync Key] and LocalPlayer.Character then
-        -- Your desync code implementation here
-        C_Desync[OldPosition] = LocalPlayer.Character.HumanoidRootPart.CFrame
-        local Origin = (flags[Attach Target] and checks and utility.target and utility.target.Character and utility.target.Character.HumanoidRootPart) or LocalPlayer.Character.HumanoidRootPart
-        local randomRange = flags[Desync Random Range]
-        Radians += flags[Desync Strafe Speed]
-        
-        local calculatedPositions = {
-            [Random] = (NewCFrame(Origin.Position) + Vector3.new(math.random(-randomRange, randomRange), math.random(-randomRange, randomRange), math.random(-randomRange, randomRange)))  CFrame.Angles(math.rad(math.random(-180, 180)), math.rad(math.random(-180, 180)), math.rad(math.random(-180, 180))),
-            [Roll] = Origin.CFrame  NewCFrame(0, -4, 0)  CFrame.Angles(0, math.rad(math.random(1, 360)), math.rad(-180)),
-            [Target Strafe] = Origin.CFrame  CFrame.Angles(0, math.rad(Radians), 0)  NewCFrame(0, flags[Desync Strafe Height], flags[Desync Strafe Radius]),
-            [Custom] = Origin.CFrame  NewCFrame(flags[Desync X], flags[Desync Y], flags[Desync Z])  CFrame.Angles(math.rad(flags[Rotation X]), math.rad(flags[Rotation Y]), math.rad(flags[Rotation Z])), 
-            [Destroy Cheaters] = Origin.CFrame  NewCFrame(9e9, 9e9, 9e9)
-        }
+-- Character Management
+local plrs = game:GetService("Players")
+local lplr = plrs.LocalPlayer
 
-        -- Set the predicted position based on the current desync type
-        C_Desync[PredictedPosition] = flags[Destroy Cheaters] and flags[Destroy Cheaters Key] and calculatedPositions[Destroy Cheaters] or calculatedPositions[flags[Desync Type]]
+local function onCharacterAdded(char)
+    lplr_character = char
+    lplr_parts = {}
+    for _, instance in pairs(char:GetChildren()) do
+        lplr_parts[instance.Name] = instance
     end
+
+    newConnection(char.ChildAdded, function(instance)
+        lplr_parts[instance.Name] = instance
+    end)
+
+    newConnection(char.ChildRemoved, function(instance)
+        lplr_parts[instance.Name] = nil
+    end)
 end
 
--- You might call updateDesync() inside a loop or a specific event handler
-gameGetService(RunService).RenderSteppedConnect(updateDesync)
+newConnection(lplr.CharacterAdded, onCharacterAdded)
+if lplr.Character then
+    onCharacterAdded(lplr.Character)
+end
+
+-- Heartbeat Event: Update Callbacks
+newConnection(game:GetService("RunService").Heartbeat, function()
+    for _, callback in pairs(callbacks) do
+        callback()
+    end
+end)
+
+-- Clean up on script unload
+newConnection(juju.script_unloaded, function(name)
+    if name == "Game Utilities" then
+        for _, connection in pairs(connections) do
+            connection:Disconnect()
+        end
+        Example:Destroy()
+    end
+end)
+
+-- Register Callbacks
+insert(callbacks, destroyCheaters)
+insert(callbacks, targetTeleport)
